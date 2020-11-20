@@ -1,13 +1,8 @@
-#[macro_use]
-extern crate derive_deref;
-
-#[macro_use]
-extern crate arrayref;
-
-use std::{vec, fs};
+use std::fs;
 use std::ops::Add;
 use structopt::StructOpt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use crate::des::encrypt_text;
 
 mod des;
 
@@ -72,7 +67,7 @@ fn reverse_key(key: Vec<usize>) -> Vec<usize> {
     res
 }
 
-fn encrypt(s: String, key: Option<Vec<usize>>) -> String {
+fn encrypt(s: Vec<u8>, key: Option<Vec<usize>>) -> String {
     let mut res = String::new();
     res.reserve(s.len());
 
@@ -86,8 +81,8 @@ fn encrypt(s: String, key: Option<Vec<usize>>) -> String {
 
     for i in 0..height {
         for j in &k {
-            res = res.add(match s.chars().nth(i * width + j) {
-                Some(ch) => ch.to_string(),
+            res = res.add(match s.get(i * width + j) {
+                Some(ch) => char::from(*ch).to_string(),
                 None => " ".to_string()
             }.as_str());
         }
@@ -96,13 +91,13 @@ fn encrypt(s: String, key: Option<Vec<usize>>) -> String {
     res
 }
 
-fn decrypt(s: String, key: Option<Vec<usize>>) -> String {
+fn decrypt(s: Vec<u8>, key: Option<Vec<usize>>) -> String {
     encrypt(s, Some(reverse_key(key.unwrap_or(int2vec(542301))))).trim().to_string()
 }
 
-fn encrypt_table(s: String, key: String) -> Vec<u8>
+fn encrypt_table(s: Vec<u8>, key: String) -> Vec<u8>
 {
-    s.as_bytes().iter().enumerate().map(|(i, b)| (b ^ key.as_bytes()[i % key.len()])).collect()
+    s.iter().enumerate().map(|(i, b)| (b ^ key.as_bytes()[i % key.len()])).collect()
 }
 
 #[derive(Copy, Clone)]
@@ -135,21 +130,21 @@ impl Iterator for GammaIter {
     }
 }
 
-fn encrypt_random(s: String, a: i32, c: i32, t_0: i32) -> Vec<u8>
+fn encrypt_random(s: Vec<u8>, a: i32, c: i32, t_0: i32) -> Vec<u8>
 {
     let key = RandomGamma::new(a, c, t_0).iter();
-    s.as_bytes().iter().zip(key).map(|(b, k)| b ^ k as u8).collect()
+    s.iter().zip(key).map(|(b, k)| b ^ k as u8).collect()
 }
 
 fn main() {
     let args: Cli = Cli::from_args();
 
-    let mut phrase: String;
+    let phrase: Vec<u8>;
 
     if let Some(key) = args.phrase {
-        phrase = key;
+        phrase = Vec::from(key.as_bytes());
     } else if let Some(path) = &args.file {
-        phrase = fs::read_to_string(path.as_path()).unwrap();
+        phrase = fs::read(path.as_path()).unwrap();
     } else {
         panic!("Enter phrase or file for encryption");
     }
@@ -157,16 +152,16 @@ fn main() {
     if args.decrypt {
         match args.command {
             Command::Vertical {key} => println!("{}", decrypt(phrase, key.map(int2vec))),
-            Command::Random {a, c, t_0} => {},
-            Command::Table {key} => {fs::write(args.file.unwrap().as_path(), encrypt_table(phrase, key));},
-            Command::DES {key} => {},
+            Command::Random {a: _, c: _, t_0: _} => {},
+            Command::Table {key} => {fs::write(args.file.unwrap().as_path(), encrypt_table(phrase, key)).unwrap();},
+            Command::DES {key} => {fs::write(args.file.unwrap().as_path(), encrypt_text(&phrase, &key, true)).unwrap();},
         }
     } else {
         match args.command {
             Command::Vertical {key} => println!("{}", encrypt(phrase, key.map(int2vec))),
-            Command::Random {a, c, t_0} => {fs::write(args.file.unwrap().as_path(), encrypt_random(phrase, a, c, t_0));},
-            Command::Table {key} => {fs::write(args.file.unwrap().as_path(), encrypt_table(phrase, key));},
-            Command::DES {key} => {},
+            Command::Random {a, c, t_0} => {fs::write(args.file.unwrap().as_path(), encrypt_random(phrase, a, c, t_0)).unwrap();},
+            Command::Table {key} => {fs::write(args.file.unwrap().as_path(), encrypt_table(phrase, key)).unwrap();},
+            Command::DES {key} => {fs::write(args.file.unwrap().as_path(), encrypt_text(&phrase, &key, false)).unwrap();},
         }
     }
 }

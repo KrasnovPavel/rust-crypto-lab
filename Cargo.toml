@@ -1,5 +1,5 @@
 [package]
-name = "Lab2"
+name = "lab2"
 version = "0.1.0"
 authors = ["Pavel Krasnov <krasnovpavel0@gmail.com>"]
 edition = "2018"
@@ -8,6 +8,4 @@ edition = "2018"
 
 [dependencies]
 structopt = "0.3.17"
-derive_deref = ""
-arrayref = ""
 itertools = ""
